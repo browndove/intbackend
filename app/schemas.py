@@ -97,7 +97,9 @@ class AdminFacilityListItem(BaseModel):
     city: str | None
     facility_type: str | None
     status: str
+    submitted: bool = False
     submitted_at: datetime | None
+    last_submitted_at: datetime | None = None
     fileCount: int
     completionPercentage: int
 
@@ -121,7 +123,12 @@ class AdminFacilityDetail(BaseModel):
     his_system: str | None
     it_support: str | None
     internet_quality: str | None
+    submitted: bool = False
     submitted_at: datetime | None
+    last_submitted_at: datetime | None = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+    portal_phase: str | None = None
     status: str
     fileCount: int
     files: list[dict[str, Any]]

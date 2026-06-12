@@ -24,6 +24,7 @@ from app.services.email import send_batch_reminders
 from app.services.submissions import (
     answers_to_admin_detail,
     get_stats,
+    last_submitted_at_by_emails,
     list_item_from_submission,
     query_submissions,
 )
@@ -77,9 +78,18 @@ def list_submissions(
     )
     for s in items:
         db.refresh(s, attribute_names=["files"])
+    last_submit_map = last_submitted_at_by_emails(
+        db, [s.facility_email for s in items if s.facility_email]
+    )
     pages = max(1, math.ceil(total / per_page)) if total else 1
     return PaginatedSubmissions(
-        items=[list_item_from_submission(s) for s in items],
+        items=[
+            list_item_from_submission(
+                s,
+                last_submitted_at=last_submit_map.get(s.facility_email) if s.facility_email else None,
+            )
+            for s in items
+        ],
         total=total,
         page=page,
         per_page=per_page,
@@ -101,7 +111,7 @@ def get_submission_detail(
     )
     if not submission:
         raise HTTPException(status_code=404, detail="Submission not found")
-    return answers_to_admin_detail(submission)
+    return answers_to_admin_detail(submission, db)
 
 
 @router.patch("/submissions/{submission_id}/status", response_model=AdminFacilityDetail)
@@ -125,7 +135,7 @@ def update_status(
     submission.status = body.status
     db.commit()
     db.refresh(submission)
-    return answers_to_admin_detail(submission)
+    return answers_to_admin_detail(submission, db)
 
 
 @router.get("/submissions/{submission_id}/files/{upload_key}/download")

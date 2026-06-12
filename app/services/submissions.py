@@ -192,7 +192,33 @@ def submission_to_out(submission: Submission) -> SubmissionOut:
     )
 
 
-def answers_to_admin_detail(submission: Submission) -> AdminFacilityDetail:
+def last_submitted_at_for_email(db: Session, facility_email: str | None) -> datetime | None:
+    if not facility_email:
+        return None
+    return db.scalar(
+        select(func.max(Submission.submitted_at)).where(
+            Submission.facility_email == facility_email.strip().lower(),
+            Submission.submitted.is_(True),
+        )
+    )
+
+
+def last_submitted_at_by_emails(db: Session, emails: list[str]) -> dict[str, datetime]:
+    normalized = [e.strip().lower() for e in emails if e]
+    if not normalized:
+        return {}
+    rows = db.execute(
+        select(Submission.facility_email, func.max(Submission.submitted_at))
+        .where(
+            Submission.facility_email.in_(normalized),
+            Submission.submitted.is_(True),
+        )
+        .group_by(Submission.facility_email)
+    ).all()
+    return {email: ts for email, ts in rows if email and ts}
+
+
+def answers_to_admin_detail(submission: Submission, db: Session | None = None) -> AdminFacilityDetail:
     a = submission.answers or {}
     files = []
     for f in submission.files or []:
@@ -211,6 +237,11 @@ def answers_to_admin_detail(submission: Submission) -> AdminFacilityDetail:
 
     total_emp = a.get("total_employees")
     patient_load = f"{total_emp} staff" if total_emp else None
+
+    last_submitted = None
+    email = submission.facility_email or a.get("facility_email")
+    if db and email:
+        last_submitted = last_submitted_at_for_email(db, email)
 
     return AdminFacilityDetail(
         id=str(submission.id),
@@ -231,7 +262,12 @@ def answers_to_admin_detail(submission: Submission) -> AdminFacilityDetail:
         his_system=submission.has_emergency or a.get("has_emergency"),
         it_support=submission.has_it_team or a.get("has_it_team"),
         internet_quality=None,
+        submitted=submission.submitted,
         submitted_at=submission.submitted_at,
+        last_submitted_at=last_submitted,
+        created_at=submission.created_at,
+        updated_at=submission.updated_at,
+        portal_phase=submission.portal_phase,
         status=submission.status,
         fileCount=len(files),
         files=files,
@@ -241,7 +277,11 @@ def answers_to_admin_detail(submission: Submission) -> AdminFacilityDetail:
     )
 
 
-def list_item_from_submission(s: Submission) -> AdminFacilityListItem:
+def list_item_from_submission(
+    s: Submission,
+    *,
+    last_submitted_at: datetime | None = None,
+) -> AdminFacilityListItem:
     return AdminFacilityListItem(
         id=str(s.id),
         facility_name=s.facility_name,
@@ -250,7 +290,9 @@ def list_item_from_submission(s: Submission) -> AdminFacilityListItem:
         city=s.city,
         facility_type=s.facility_type,
         status=s.status,
+        submitted=s.submitted,
         submitted_at=s.submitted_at,
+        last_submitted_at=last_submitted_at,
         fileCount=len(s.files) if s.files else 0,
         completionPercentage=completion_percentage(s.answers or {}),
     )
