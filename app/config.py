@@ -17,7 +17,7 @@ class Settings(BaseSettings):
 
     # Resend — completion reminder emails
     resend_api_key: str = ""
-    resend_from_email: str = "Helix Health <onboarding@helix.health>"
+    resend_from_email: str = "Helix Health <onboarding@helixhealth.app>"
     resend_enabled: bool = False
     onboarding_portal_url: str = "https://www.helixhealth.app/on-boarding/index.html"
     send_submit_confirmation: bool = True

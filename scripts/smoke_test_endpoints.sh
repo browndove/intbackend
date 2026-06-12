@@ -125,14 +125,18 @@ c=$(code -X DELETE "$API/onboarding/submissions/$FILE_SUB/files/staff")
 c=$(code -X POST "$API/onboarding/submissions/$FILE_SUB/files/invalid" -F "file=@$STAFF_CSV")
 [[ "$c" == "400" ]] && ok "POST invalid upload_key returns 400 ($c)" || bad "invalid upload_key" "expected 400 got $c"
 
-# Admin login
+# Admin login — env vars override backend/.env
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ENV_FILE="$SCRIPT_DIR/../.env"
-ADMIN_PASS="start"
-ADMIN_MAIL="admin@helix.health"
+ADMIN_PASS="${ADMIN_PASSWORD:-start}"
+ADMIN_MAIL="${ADMIN_EMAIL:-admin@helix.health}"
 if [[ -f "$ENV_FILE" ]]; then
-  ADMIN_PASS=$(grep -E '^ADMIN_PASSWORD=' "$ENV_FILE" | cut -d= -f2- | tr -d '"' || echo "start")
-  ADMIN_MAIL=$(grep -E '^ADMIN_EMAIL=' "$ENV_FILE" | cut -d= -f2- | tr -d '"' || echo "admin@helix.health")
+  if [[ -z "${ADMIN_PASSWORD:-}" ]]; then
+    ADMIN_PASS=$(grep -E '^ADMIN_PASSWORD=' "$ENV_FILE" | cut -d= -f2- | tr -d '"' || echo "start")
+  fi
+  if [[ -z "${ADMIN_EMAIL:-}" ]]; then
+    ADMIN_MAIL=$(grep -E '^ADMIN_EMAIL=' "$ENV_FILE" | cut -d= -f2- | tr -d '"' || echo "admin@helix.health")
+  fi
 fi
 
 c=$(code -X POST "$API/admin/auth/login" \

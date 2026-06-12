@@ -32,11 +32,11 @@ def _resume_url(facility_email: str | None) -> str:
     return base
 
 
-def _send_resend(*, to: str, subject: str, html: str, text: str) -> bool:
+def _send_resend(*, to: str, subject: str, html: str, text: str) -> tuple[bool, str | None]:
     settings = get_settings()
     if not settings.resend_enabled or not settings.resend_api_key:
         logger.info("Resend disabled; skipping email to %s", to)
-        return False
+        return False, "Resend disabled"
 
     resend.api_key = settings.resend_api_key
     try:
@@ -49,10 +49,10 @@ def _send_resend(*, to: str, subject: str, html: str, text: str) -> bool:
                 "text": text,
             }
         )
-        return True
+        return True, None
     except Exception as exc:
         logger.exception("Resend failed for %s: %s", to, exc)
-        return False
+        return False, str(exc)
 
 
 def resend_configured() -> bool:
@@ -60,8 +60,10 @@ def resend_configured() -> bool:
     return bool(settings.resend_enabled and settings.resend_api_key)
 
 
-def send_reminder_email(recipient_email: str, facility_name: str, last_step: str) -> bool:
-    """Send a completion reminder for an incomplete onboarding draft."""
+def send_reminder_email_detailed(
+    recipient_email: str, facility_name: str, last_step: str
+) -> tuple[bool, str | None]:
+    """Send a completion reminder; returns (success, resend_error)."""
     resume_url = _resume_url(recipient_email)
     subject = "Helix Health — Complete your facility pre-onboarding"
 
@@ -110,6 +112,11 @@ can be added later — they do not block submission.
     return _send_resend(to=recipient_email, subject=subject, html=html_body, text=plain_text)
 
 
+def send_reminder_email(recipient_email: str, facility_name: str, last_step: str) -> bool:
+    ok, _ = send_reminder_email_detailed(recipient_email, facility_name, last_step)
+    return ok
+
+
 def send_submission_confirmation(submission: Submission) -> bool:
     """Optional confirmation after a facility submits the checklist."""
     email = submission.facility_email
@@ -145,7 +152,8 @@ You can still upload template files from the portal when ready: {portal_url}
 — The Helix Health Team
 """
 
-    return _send_resend(to=email, subject=subject, html=html_body, text=plain_text)
+    ok, _ = _send_resend(to=email, subject=subject, html=html_body, text=plain_text)
+    return ok
 
 
 def send_batch_reminders(submissions: list[Submission]) -> dict:

@@ -209,21 +209,20 @@ def send_facility_reminder(
     if not submission.facility_email:
         raise HTTPException(status_code=400, detail="Submission has no facility email")
     
-    from app.services.email import send_reminder_email
-    
+    from app.services.email import resend_configured, send_reminder_email_detailed
+
     last_step = submission.portal_phase or "facility information"
-    success = send_reminder_email(
+    success, resend_error = send_reminder_email_detailed(
         submission.facility_email,
         submission.facility_name or "Facility",
-        last_step
+        last_step,
     )
-    
+
     if success:
         return {
             "message": f"Reminder sent to {submission.facility_email}",
             "success": True,
         }
-    from app.services.email import resend_configured
 
     if not resend_configured():
         raise HTTPException(
@@ -232,8 +231,9 @@ def send_facility_reminder(
         )
     raise HTTPException(
         status_code=502,
-        detail=(
-            "Resend rejected the email. Verify RESEND_FROM_EMAIL uses a domain "
-            "verified in your Resend dashboard."
+        detail=resend_error
+        or (
+            "Resend rejected the email. Set RESEND_FROM_EMAIL to an address on your "
+            "verified domain (e.g. onboarding@helixhealth.app)."
         ),
     )
