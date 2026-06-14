@@ -29,12 +29,10 @@ def get_db():
 
 def run_migrations() -> None:
     """Apply idempotent SQL migrations (adds columns to existing deployments)."""
-    migration = Path(__file__).resolve().parent.parent / "migrations" / "001_onboarding_schema.sql"
-    if not migration.is_file():
+    migrations_dir = Path(__file__).resolve().parent.parent / "migrations"
+    if not migrations_dir.is_dir():
         return
-    sql = migration.read_text()
-    with engine.begin() as conn:
-        for statement in sql.split(";"):
-            stmt = statement.strip()
-            if stmt:
-                conn.execute(text(stmt))
+    for migration in sorted(migrations_dir.glob("*.sql")):
+        sql = migration.read_text()
+        with engine.begin() as conn:
+            conn.execute(text(sql))

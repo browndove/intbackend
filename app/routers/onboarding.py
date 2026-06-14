@@ -52,10 +52,7 @@ def _lookup_draft_by_email(db: Session, email: str) -> SubmissionOut:
     normalized = email.strip().lower()
     submission = db.execute(
         select(Submission)
-        .where(
-            Submission.facility_email == normalized,
-            Submission.submitted.is_(False),
-        )
+        .where(Submission.facility_email == normalized)
         .order_by(Submission.updated_at.desc())
         .limit(1)
     ).scalars().first()

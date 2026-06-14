@@ -148,6 +148,7 @@ def ingest_csv_rows(
     """
     Parse a validated CSV into typed rows for the given upload_key.
     Replaces any existing rows for that submission + template type.
+    Extra columns in the CSV are ignored; matching is case-insensitive.
     """
     model = INGEST_MODELS.get(upload_key)
     headers = TEMPLATE_HEADERS.get(upload_key)
@@ -163,9 +164,16 @@ def ingest_csv_rows(
         db.flush()
         return 0
 
+    # Build a case-insensitive mapping: csv_column_lower -> actual csv_column_name
+    field_map = {f.strip().lower(): f for f in reader.fieldnames}
+
     count = 0
     for idx, raw in enumerate(reader, start=1):
-        row = {k: (raw.get(k) or "").strip() for k in headers}
+        # Map our expected headers to the CSV's actual column names (case-insensitive)
+        row = {}
+        for k in headers:
+            csv_col = field_map.get(k.lower())
+            row[k] = (raw.get(csv_col) or "").strip() if csv_col else ""
         if not _is_data_row(row):
             continue
         db.add(builder(submission.id, source_file_id, idx, row))

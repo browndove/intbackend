@@ -3,7 +3,7 @@ from pathlib import Path
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
@@ -153,13 +153,21 @@ def download_file(
         )
         .first()
     )
-    if not record or not Path(record.storage_path).is_file():
+    if not record:
         raise HTTPException(status_code=404, detail="File not found")
-    return FileResponse(
-        path=record.storage_path,
-        filename=record.file_name,
-        media_type=record.content_type or "application/octet-stream",
-    )
+    if Path(record.storage_path).is_file():
+        return FileResponse(
+            path=record.storage_path,
+            filename=record.file_name,
+            media_type=record.content_type or "application/octet-stream",
+        )
+    if record.content:
+        return Response(
+            content=record.content,
+            media_type=record.content_type or "application/octet-stream",
+            headers={"Content-Disposition": f'attachment; filename="{record.file_name}"'},
+        )
+    raise HTTPException(status_code=404, detail="File not found")
 
 
 @router.post("/reminders/send-incomplete")
