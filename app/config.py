@@ -20,6 +20,8 @@ class Settings(BaseSettings):
     resend_from_email: str = "Helix Health <onboarding@helixhealth.app>"
     resend_enabled: bool = False
     onboarding_portal_url: str = "https://www.helixhealth.app/on-boarding/index.html"
+    public_site_url: str = "https://www.helixhealth.app"
+    email_logo_url: str = "https://www.helixhealth.app/brand-logo.svg"
     send_submit_confirmation: bool = True
     send_application_started_email: bool = True
 
