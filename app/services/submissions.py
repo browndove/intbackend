@@ -406,7 +406,7 @@ def maybe_send_application_started_email(
     settings = get_settings()
     if not settings.send_application_started_email or not settings.resend_enabled:
         return False
-    if submission.submitted or not submission.facility_email:
+    if not submission.facility_email:
         return False
 
     current = (submission.facility_email or "").strip().lower()
@@ -416,12 +416,18 @@ def maybe_send_application_started_email(
 
     from app.services.email import send_application_started_email
 
-    email_changed = bool(previous and current != previous and submission.started_email_sent_at)
+    email_changed = bool(previous and current != previous)
 
-    if submission.started_email_sent_at and not email_changed:
+    if submission.submitted:
+        if not email_changed:
+            return False
+    elif submission.started_email_sent_at and not email_changed:
         return False
 
-    ok, err = send_application_started_email(submission, email_changed=email_changed)
+    ok, err = send_application_started_email(
+        submission,
+        email_changed=email_changed and bool(submission.started_email_sent_at or submission.submitted),
+    )
     if ok:
         if not submission.started_email_sent_at:
             submission.started_email_sent_at = datetime.now(timezone.utc)
