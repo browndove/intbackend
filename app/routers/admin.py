@@ -23,6 +23,7 @@ from app.schemas import (
 from app.services.email import send_batch_reminders
 from app.services.submissions import (
     answers_to_admin_detail,
+    delete_submission,
     get_stats,
     last_submitted_at_by_emails,
     list_item_from_submission,
@@ -136,6 +137,23 @@ def update_status(
     db.commit()
     db.refresh(submission)
     return answers_to_admin_detail(submission, db)
+
+
+@router.delete("/submissions/{submission_id}", status_code=204)
+def remove_submission(
+    submission_id: UUID,
+    db: Session = Depends(get_db),
+    _: str = Depends(get_current_admin),
+):
+    submission = (
+        db.query(Submission)
+        .options(joinedload(Submission.files))
+        .filter(Submission.id == submission_id)
+        .first()
+    )
+    if not submission:
+        raise HTTPException(status_code=404, detail="Submission not found")
+    delete_submission(db, submission)
 
 
 @router.get("/submissions/{submission_id}/files/{upload_key}/download")

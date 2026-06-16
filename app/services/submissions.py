@@ -1,5 +1,7 @@
-from datetime import datetime, timezone
 import logging
+import shutil
+from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
 from fastapi import HTTPException
@@ -432,6 +434,24 @@ def maybe_send_application_started_email(
             err,
         )
     return False
+
+
+def delete_submission(db: Session, submission: Submission) -> None:
+    """Permanently remove a submission, uploaded files, and ingested rows."""
+    settings = get_settings()
+    upload_root = Path(settings.upload_dir) / str(submission.id)
+
+    for record in list(submission.files or []):
+        try:
+            Path(record.storage_path).unlink(missing_ok=True)
+        except OSError:
+            logger.warning("Could not delete file at %s", record.storage_path)
+
+    if upload_root.is_dir():
+        shutil.rmtree(upload_root, ignore_errors=True)
+
+    db.delete(submission)
+    db.commit()
 
 
 def submit_submission(db: Session, submission: Submission) -> None:
