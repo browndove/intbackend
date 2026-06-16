@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+import logging
 from typing import Any
 
 from fastapi import HTTPException
@@ -14,6 +15,8 @@ from app.schemas import (
     SubmissionOut,
     SubmissionPayload,
 )
+
+logger = logging.getLogger(__name__)
 
 REQUIRED_ANSWER_KEYS = [
     "facility_name",
@@ -392,6 +395,43 @@ def query_submissions(
     per_page = min(100, max(1, per_page))
     items = db.execute(q.offset((page - 1) * per_page).limit(per_page)).scalars().unique().all()
     return list(items), total
+
+
+def maybe_send_application_started_email(
+    db: Session, submission: Submission, *, previous_email: str | None = None
+) -> bool:
+    """Send welcome email on first save, or updated resume link when email changes."""
+    settings = get_settings()
+    if not settings.send_application_started_email or not settings.resend_enabled:
+        return False
+    if submission.submitted or not submission.facility_email:
+        return False
+
+    current = (submission.facility_email or "").strip().lower()
+    previous = (previous_email or "").strip().lower() or None
+    if not current:
+        return False
+
+    from app.services.email import send_application_started_email
+
+    email_changed = bool(previous and current != previous and submission.started_email_sent_at)
+
+    if submission.started_email_sent_at and not email_changed:
+        return False
+
+    ok, err = send_application_started_email(submission, email_changed=email_changed)
+    if ok:
+        if not submission.started_email_sent_at:
+            submission.started_email_sent_at = datetime.now(timezone.utc)
+        db.flush()
+        return True
+    if err and err != "Resend disabled":
+        logger.warning(
+            "Application started email failed for %s: %s",
+            submission.facility_email,
+            err,
+        )
+    return False
 
 
 def submit_submission(db: Session, submission: Submission) -> None:

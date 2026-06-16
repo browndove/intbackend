@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     resend_enabled: bool = False
     onboarding_portal_url: str = "https://www.helixhealth.app/on-boarding/index.html"
     send_submit_confirmation: bool = True
+    send_application_started_email: bool = True
 
     @property
     def sqlalchemy_database_url(self) -> str:

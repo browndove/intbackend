@@ -11,6 +11,7 @@ from app.schemas import SubmissionCreate, SubmissionOut, SubmissionPayload, Subm
 from app.services.files import delete_submission_file, save_submission_file
 from app.services.submissions import (
     apply_payload,
+    maybe_send_application_started_email,
     submission_to_out,
     submit_submission,
     sync_denormalized,
@@ -32,6 +33,8 @@ def create_submission(body: SubmissionCreate, db: Session = Depends(get_db)):
     submission = Submission(status=SubmissionStatus.incomplete.value)
     apply_payload(submission, body)
     db.add(submission)
+    db.flush()
+    maybe_send_application_started_email(db, submission)
     db.commit()
     db.refresh(submission)
     return submission_to_out(submission)
@@ -73,6 +76,7 @@ def update_submission(
     db: Session = Depends(get_db),
 ):
     submission = _get_submission_or_404(db, submission_id)
+    previous_email = submission.facility_email
     if body.portal_phase is not None:
         submission.portal_phase = body.portal_phase
     if body.answers is not None:
@@ -85,6 +89,7 @@ def update_submission(
     if body.submitted is not None:
         submission.submitted = body.submitted
     sync_denormalized(submission)
+    maybe_send_application_started_email(db, submission, previous_email=previous_email)
     db.commit()
     db.refresh(submission)
     return submission_to_out(submission)
@@ -97,12 +102,14 @@ async def replace_submission(
     db: Session = Depends(get_db),
 ):
     submission = _get_submission_or_404(db, submission_id)
+    previous_email = submission.facility_email
     data = await request.json()
     if not data.get("uploads") and data.get("uploads_meta"):
         data["uploads"] = data["uploads_meta"]
     payload = SubmissionCreate.model_validate(data)
     apply_payload(submission, payload)
     sync_denormalized(submission)
+    maybe_send_application_started_email(db, submission, previous_email=previous_email)
     db.commit()
     db.refresh(submission)
     return submission_to_out(submission)

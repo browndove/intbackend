@@ -60,6 +60,91 @@ def resend_configured() -> bool:
     return bool(settings.resend_enabled and settings.resend_api_key)
 
 
+def send_application_started_email(
+    submission: Submission, *, email_changed: bool = False
+) -> tuple[bool, str | None]:
+    """Welcome / resume email when a facility saves or updates their draft email."""
+    email = submission.facility_email
+    if not email:
+        return False, "No facility email"
+
+    name = submission.facility_name or "your facility"
+    resume_url = _resume_url(email)
+
+    if email_changed:
+        subject = "Helix Health — Your application link has been updated"
+        intro_html = (
+            f"<p>Your Helix facility pre-onboarding application email was updated to "
+            f"<strong>{email}</strong>.</p>"
+            "<p>All of your saved answers and uploads are still there — you do not need to "
+            "start over. Use the link below to continue exactly where you left off.</p>"
+        )
+        intro_text = (
+            f"Your Helix facility pre-onboarding application email was updated to {email}.\n\n"
+            "All of your saved answers and uploads are still there — you do not need to start over. "
+            "Use the link below to continue exactly where you left off."
+        )
+        cta = "Continue your application"
+    else:
+        subject = "Helix Health — Your pre-onboarding application has started"
+        intro_html = (
+            "<p>You have started your Helix facility pre-onboarding application. Your progress "
+            "is saved automatically — you can close this tab and come back any time.</p>"
+            f"<p>Use the link below to continue where you left off. This link is tied to "
+            f"<strong>{email}</strong> and will always bring you back to your saved draft.</p>"
+        )
+        intro_text = (
+            "You have started your Helix facility pre-onboarding application. Your progress "
+            "is saved automatically — you can close this tab and come back any time.\n\n"
+            f"Continue where you left off. This link is tied to {email} and will bring you "
+            "back to your saved draft."
+        )
+        cta = "Continue your application"
+
+    html_body = f"""
+    <html>
+      <body style="font-family: Inter, Arial, sans-serif; line-height: 1.6; color: #1a1a1a;">
+        <div style="max-width: 600px; margin: 0 auto; padding: 24px;">
+          <h2 style="color: #0a0a0a;">Hi {name},</h2>
+          {intro_html}
+          <p style="margin-top: 28px;">
+            <a href="{resume_url}"
+               style="background-color: #00B383; color: #ffffff; padding: 12px 24px;
+                      text-decoration: none; border-radius: 6px; display: inline-block;
+                      font-weight: 600;">
+              {cta}
+            </a>
+          </p>
+          <p style="margin-top: 24px; font-size: 13px; color: #666;">
+            Or copy this link: <a href="{resume_url}">{resume_url}</a>
+          </p>
+          <p style="margin-top: 32px; font-size: 13px; color: #666;">
+            Questions? Reply to this email or contact support@helixhealth.app.
+          </p>
+          <p style="font-size: 13px; color: #666;">— The Helix Health Team</p>
+        </div>
+      </body>
+    </html>
+    """
+
+    plain_text = f"""Hi {name},
+
+{intro_text}
+
+Continue here (bookmark this link):
+{resume_url}
+
+— The Helix Health Team
+"""
+
+    return _send_resend(to=email, subject=subject, html=html_body, text=plain_text)
+
+
+def send_application_started_email_simple(submission: Submission) -> bool:
+    ok, _ = send_application_started_email(submission)
+    return ok
+
+
 def send_reminder_email_detailed(
     recipient_email: str, facility_name: str, last_step: str
 ) -> tuple[bool, str | None]:
