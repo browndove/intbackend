@@ -100,6 +100,7 @@ class AdminFacilityListItem(BaseModel):
     submitted: bool = False
     submitted_at: datetime | None
     last_submitted_at: datetime | None = None
+    updated_at: datetime | None = None
     fileCount: int
     completionPercentage: int
 

@@ -20,6 +20,32 @@ from app.schemas import (
 
 logger = logging.getLogger(__name__)
 
+
+def normalize_facility_email(email: str | None) -> str | None:
+    if not email:
+        return None
+    normalized = email.strip().lower()
+    return normalized if "@" in normalized else None
+
+
+def find_open_draft_by_email(db: Session, email: str | None) -> Submission | None:
+    """Latest unsubmitted draft for this facility email, if any."""
+    normalized = normalize_facility_email(email)
+    if not normalized:
+        return None
+    return db.execute(
+        select(Submission)
+        .where(Submission.facility_email == normalized)
+        .where(Submission.submitted.is_(False))
+        .order_by(Submission.updated_at.desc())
+        .limit(1)
+    ).scalars().first()
+
+
+def touch_submission_updated_at(submission: Submission) -> None:
+    submission.updated_at = datetime.now(timezone.utc)
+
+
 REQUIRED_ANSWER_KEYS = [
     "facility_name",
     "facility_type",
@@ -160,6 +186,7 @@ def uploads_meta_to_dict(uploads: dict | None) -> dict:
 def apply_payload(submission: Submission, payload: SubmissionPayload, *, uploads_meta: dict | None = None) -> None:
     from sqlalchemy.orm.attributes import flag_modified
 
+    touch_submission_updated_at(submission)
     submission.kind = payload.kind
     submission.schema_version = payload.schema_version
     submission.portal_phase = payload.portal_phase
@@ -298,6 +325,7 @@ def list_item_from_submission(
         submitted=s.submitted,
         submitted_at=s.submitted_at,
         last_submitted_at=last_submitted_at,
+        updated_at=s.updated_at,
         fileCount=len(s.files) if s.files else 0,
         completionPercentage=completion_percentage(s.answers or {}),
     )
