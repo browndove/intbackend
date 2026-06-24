@@ -106,8 +106,8 @@ c=$(code -X POST "$API/onboarding/submissions/import" \
 
 # File upload - minimal valid staff CSV header
 STAFF_CSV="/tmp/hx_staff.csv"
-echo "email,first_name,last_name,job_title,rank,middle_name,phone,gender,department,subspecialty,patient_access,employee_id,highest_qualifications" > "$STAFF_CSV"
-echo "a@t.com,A,B,,,,233201234567,Male,Med,,Yes,E1,MBChB" >> "$STAFF_CSV"
+echo "email,first_name,last_name,job_title,rank,middle_name,phone,gender,department,patient_access,employee_id,highest_qualifications" > "$STAFF_CSV"
+echo "a@t.com,A,B,,,,233201234567,Male,Med,Yes,E1,MBChB" >> "$STAFF_CSV"
 
 # Need incomplete submission for file test - create another
 c=$(code -X POST "$API/onboarding/submissions" \

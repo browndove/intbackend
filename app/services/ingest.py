@@ -79,7 +79,7 @@ def _row_to_staff(submission_id: UUID, source_file_id: UUID | None, row_num: int
         job_title=_cell(row, "job_title"),
         rank=_cell(row, "rank"),
         middle_name=_cell(row, "middle_name"),
-        phone=_cell(row, "phone") or "",
+        phone=_cell(row, "phone"),
         gender=_cell(row, "gender") or "",
         department=_cell(row, "department") or "",
         subspecialty=_cell(row, "subspecialty"),
@@ -118,10 +118,10 @@ def _row_to_patient(submission_id: UUID, source_file_id: UUID | None, row_num: i
         medical_record_number=_cell(row, "medical_record_number") or "",
         gender=_cell(row, "gender") or "",
         department=_cell(row, "department") or "",
-        subspecialty=_cell(row, "subspecialty"),
         floor=_cell(row, "floor") or "",
-        ward=_cell(row, "ward") or "",
-        bed=_cell(row, "bed"),
+        unit=_cell(row, "Unit") or _cell(row, "unit") or _cell(row, "ward") or "",
+        bed_number=_cell(row, "bed_number") or _cell(row, "bed"),
+        room_number=_cell(row, "room_number"),
     )
 
 

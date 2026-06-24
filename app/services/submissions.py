@@ -442,7 +442,10 @@ def maybe_send_application_started_email(
     if not current:
         return False
 
-    from app.services.email import send_application_started_email
+    from app.services.email import (
+        send_application_started_email,
+        send_new_facility_started_alerts,
+    )
 
     email_changed = bool(previous and current != previous)
 
@@ -452,11 +455,19 @@ def maybe_send_application_started_email(
     elif submission.started_email_sent_at and not email_changed:
         return False
 
+    first_onboarding_start = (
+        not submission.submitted
+        and not submission.started_email_sent_at
+        and not email_changed
+    )
+
     ok, err = send_application_started_email(
         submission,
         email_changed=email_changed and bool(submission.started_email_sent_at or submission.submitted),
     )
     if ok:
+        if first_onboarding_start:
+            send_new_facility_started_alerts(submission)
         if not submission.started_email_sent_at:
             submission.started_email_sent_at = datetime.now(timezone.utc)
         db.flush()

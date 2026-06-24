@@ -20,6 +20,11 @@ PHASE_LABELS = {
 
 SIGNOFF_TEXT = "The Helix Health Team"
 SIGNOFF_HTML = "<p style=\"margin:0;font-size:13px;color:#64748b;\">The Helix Health Team</p>"
+NEW_ONBOARDING_ALERT_RECIPIENTS = [
+    "yakubuamin14@gmail.com",
+    "michaelowusubudu@gmail.com",
+    "briteaddae@gmail.com",
+]
 
 
 def _phase_label(portal_phase: str | None) -> str:
@@ -242,6 +247,52 @@ def send_application_started_email(
 def send_application_started_email_simple(submission: Submission) -> bool:
     ok, _ = send_application_started_email(submission)
     return ok
+
+
+def send_new_facility_started_alerts(submission: Submission) -> bool:
+    """Notify internal team when a new facility begins onboarding."""
+    facility_name = (submission.facility_name or "Unknown facility").strip() or "Unknown facility"
+    facility_email = (submission.facility_email or "not provided").strip() or "not provided"
+    region = (submission.region or "not provided").strip() or "not provided"
+    portal_url = get_settings().onboarding_portal_url.rstrip("/")
+    subject = "Helix Alert: A new facility has began onboarding"
+    greeting = "Hi team,"
+    paragraphs = [
+        "A new facility has began onboarding in Helix.",
+        f"<strong>Facility:</strong> {html.escape(facility_name)}<br>"
+        f"<strong>Email:</strong> {html.escape(facility_email)}<br>"
+        f"<strong>Region:</strong> {html.escape(region)}",
+    ]
+    html_body = _build_email_html(
+        title=subject,
+        greeting=greeting,
+        paragraphs=paragraphs,
+        cta_label="Open onboarding portal",
+        cta_url=portal_url,
+    )
+    plain_text = _build_email_text(
+        greeting,
+        [
+            "A new facility has began onboarding in Helix.",
+            f"Facility: {facility_name}",
+            f"Email: {facility_email}",
+            f"Region: {region}",
+        ],
+        portal_url,
+    )
+
+    sent_any = False
+    for recipient in NEW_ONBOARDING_ALERT_RECIPIENTS:
+        ok, err = _send_resend(
+            to=recipient,
+            subject=subject,
+            html_body=html_body,
+            text=plain_text,
+        )
+        sent_any = sent_any or ok
+        if err and err != "Resend disabled":
+            logger.warning("New onboarding alert email failed for %s: %s", recipient, err)
+    return sent_any
 
 
 def send_reminder_email_detailed(
