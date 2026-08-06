@@ -4,13 +4,26 @@ ALTER TABLE submission_patients ADD COLUMN IF NOT EXISTS unit VARCHAR(255);
 ALTER TABLE submission_patients ADD COLUMN IF NOT EXISTS bed_number VARCHAR(64);
 ALTER TABLE submission_patients ADD COLUMN IF NOT EXISTS room_number VARCHAR(64);
 
-UPDATE submission_patients
-SET unit = ward
-WHERE unit IS NULL AND ward IS NOT NULL;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'submission_patients' AND column_name = 'ward'
+  ) THEN
+    UPDATE submission_patients
+    SET unit = ward
+    WHERE unit IS NULL AND ward IS NOT NULL;
+  END IF;
 
-UPDATE submission_patients
-SET bed_number = bed
-WHERE bed_number IS NULL AND bed IS NOT NULL;
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'submission_patients' AND column_name = 'bed'
+  ) THEN
+    UPDATE submission_patients
+    SET bed_number = bed
+    WHERE bed_number IS NULL AND bed IS NOT NULL;
+  END IF;
+END $$;
 
 DO $$
 BEGIN
