@@ -7,8 +7,7 @@ from fastapi.responses import FileResponse, Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
-from app.auth import create_access_token, get_current_admin, verify_admin_password
-from app.config import get_settings
+from app.auth import authenticate_admin, create_access_token, get_current_admin
 from app.database import get_db
 from app.models import Submission, SubmissionFile, SubmissionStatus
 from app.schemas import (
@@ -34,14 +33,11 @@ router = APIRouter(prefix="/admin", tags=["admin"])
 
 
 @router.post("/auth/login", response_model=TokenResponse)
-def login(body: AdminLoginRequest):
-    settings = get_settings()
-    if body.email != settings.admin_email or not verify_admin_password(
-        body.password, settings.admin_password
-    ):
+def login(body: AdminLoginRequest, db: Session = Depends(get_db)):
+    email = authenticate_admin(db, body.email, body.password)
+    if not email:
         raise HTTPException(status_code=401, detail="Invalid email or password")
-    token = create_access_token(settings.admin_email)
-    return TokenResponse(access_token=token)
+    return TokenResponse(access_token=create_access_token(email))
 
 
 @router.get("/stats", response_model=AdminStats)
