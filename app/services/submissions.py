@@ -34,7 +34,12 @@ def _parse_day_bound(value: str | None, *, end_of_day: bool = False) -> datetime
             dt = datetime.combine(day.date(), time.max if end_of_day else time.min)
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=timezone.utc)
-        return dt.astimezone(timezone.utc)
+        else:
+            dt = dt.astimezone(timezone.utc)
+        # Date pickers often send midnight ISO for date_to; include the rest of that day.
+        if end_of_day and dt.time() == time.min:
+            dt = dt.replace(hour=23, minute=59, second=59, microsecond=999999)
+        return dt
     except ValueError:
         logger.warning("Ignoring invalid date filter: %s", value)
         return None
