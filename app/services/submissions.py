@@ -1,6 +1,6 @@
 import logging
 import shutil
-from datetime import datetime, timezone
+from datetime import datetime, time, timezone
 from pathlib import Path
 from typing import Any
 
@@ -19,6 +19,30 @@ from app.schemas import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _parse_day_bound(value: str | None, *, end_of_day: bool = False) -> datetime | None:
+    """Parse YYYY-MM-DD (or ISO datetime) into a timezone-aware UTC bound."""
+    raw = (value or "").strip()
+    if not raw:
+        return None
+    try:
+        if "T" in raw:
+            dt = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        else:
+            day = datetime.fromisoformat(raw[:10])
+            dt = datetime.combine(day.date(), time.max if end_of_day else time.min)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(timezone.utc)
+    except ValueError:
+        logger.warning("Ignoring invalid date filter: %s", value)
+        return None
+
+
+def _activity_timestamp():
+    """Last activity shown in admin (last saved), not only formal submit time."""
+    return func.coalesce(Submission.updated_at, Submission.created_at, Submission.submitted_at)
 
 
 def normalize_facility_email(email: str | None) -> str | None:
@@ -380,10 +404,12 @@ def query_submissions(
         q = q.where(Submission.region == region)
     if facility_type:
         q = q.where(Submission.facility_type == facility_type)
-    if date_from:
-        q = q.where(Submission.submitted_at >= datetime.fromisoformat(date_from))
-    if date_to:
-        q = q.where(Submission.submitted_at <= datetime.fromisoformat(f"{date_to}T23:59:59"))
+    start = _parse_day_bound(date_from)
+    end = _parse_day_bound(date_to, end_of_day=True)
+    if start:
+        q = q.where(_activity_timestamp() >= start)
+    if end:
+        q = q.where(_activity_timestamp() <= end)
 
     sort_map = {
         "facility_name": Submission.facility_name,
@@ -415,10 +441,10 @@ def query_submissions(
         count_q = count_q.where(Submission.region == region)
     if facility_type:
         count_q = count_q.where(Submission.facility_type == facility_type)
-    if date_from:
-        count_q = count_q.where(Submission.submitted_at >= datetime.fromisoformat(date_from))
-    if date_to:
-        count_q = count_q.where(Submission.submitted_at <= datetime.fromisoformat(f"{date_to}T23:59:59"))
+    if start:
+        count_q = count_q.where(_activity_timestamp() >= start)
+    if end:
+        count_q = count_q.where(_activity_timestamp() <= end)
 
     total = db.scalar(count_q) or 0
     page = max(1, page)
