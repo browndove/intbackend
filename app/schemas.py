@@ -117,6 +117,7 @@ class AdminFacilityDetail(BaseModel):
     primary_contact_name: str | None
     primary_contact_email: str | None
     primary_contact_phone: str | None
+    emergency_contact: str | None = None
     secondary_contact_name: str | None
     secondary_contact_email: str | None
     secondary_contact_phone: str | None

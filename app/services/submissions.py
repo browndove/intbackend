@@ -149,6 +149,17 @@ def _phone_country(answers: dict[str, Any], prefix: str) -> str | None:
     return _str_or_none(answers.get(f"{prefix}_country") or answers.get(f"{prefix}_iso"))
 
 
+def _phone_display(answers: dict[str, Any], key: str) -> str | None:
+    """Human-readable phone from answers (digits + country iso when present)."""
+    digits = _str_or_none(answers.get(key))
+    if not digits:
+        return None
+    if "+" in digits:
+        return digits
+    iso = _phone_country(answers, key)
+    return f"{iso} {digits}".strip() if iso else digits
+
+
 def sync_denormalized(submission: Submission) -> None:
     answers = submission.answers or {}
 
@@ -317,6 +328,7 @@ def answers_to_admin_detail(submission: Submission, db: Session | None = None) -
         primary_contact_name=submission.primary_name or a.get("primary_name"),
         primary_contact_email=submission.primary_email or a.get("primary_email"),
         primary_contact_phone=submission.primary_phone or a.get("primary_phone"),
+        emergency_contact=_phone_display(a, "emergency_contact"),
         secondary_contact_name=submission.secondary_name or a.get("secondary_name"),
         secondary_contact_email=submission.secondary_email or a.get("secondary_email"),
         secondary_contact_phone=submission.secondary_phone or a.get("secondary_phone"),
