@@ -344,20 +344,21 @@ def list_item_from_submission(
     *,
     last_submitted_at: datetime | None = None,
 ) -> AdminFacilityListItem:
+    a = s.answers or {}
     return AdminFacilityListItem(
         id=str(s.id),
-        facility_name=s.facility_name,
-        facility_email=s.facility_email,
-        region=s.region,
-        city=s.city,
-        facility_type=s.facility_type,
+        facility_name=s.facility_name or a.get("facility_name"),
+        facility_email=s.facility_email or a.get("facility_email"),
+        region=s.region or a.get("facility_region"),
+        city=s.city or a.get("facility_city"),
+        facility_type=s.facility_type or a.get("facility_type"),
         status=s.status,
         submitted=s.submitted,
         submitted_at=s.submitted_at,
         last_submitted_at=last_submitted_at,
         updated_at=s.updated_at,
         fileCount=len(s.files) if s.files else 0,
-        completionPercentage=completion_percentage(s.answers or {}),
+        completionPercentage=completion_percentage(a),
     )
 
 
@@ -424,6 +425,7 @@ def query_submissions(
         "city": Submission.city,
         "facility_type": Submission.facility_type,
         "submitted_at": Submission.submitted_at,
+        "updated_at": Submission.updated_at,
         "status": Submission.status,
     }
     col = sort_map.get(sort_field, Submission.submitted_at)
@@ -541,6 +543,7 @@ def submit_submission(db: Session, submission: Submission) -> None:
     now = datetime.now(timezone.utc)
     submission.submitted = True
     submission.submitted_at = now
+    submission.updated_at = now
     submission.status = SubmissionStatus.pending.value
     sync_denormalized(submission)
 

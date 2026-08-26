@@ -12,6 +12,7 @@ from sqlalchemy.orm.attributes import flag_modified
 from app.config import get_settings
 from app.models import Submission, SubmissionFile, UPLOAD_KEYS
 from app.services.ingest import clear_ingested_rows, ingest_csv_rows
+from app.services.submissions import touch_submission_updated_at
 from app.template_schema import TEMPLATE_HEADERS
 
 
@@ -137,6 +138,7 @@ async def save_submission_file(
     }
     submission.uploads_meta = meta
     flag_modified(submission, "uploads_meta")
+    touch_submission_updated_at(submission)
     db.commit()
     db.refresh(submission)
     db.refresh(record)
@@ -161,5 +163,6 @@ def delete_submission_file(db: Session, submission: Submission, upload_key: str)
     meta[upload_key] = None
     submission.uploads_meta = meta
     flag_modified(submission, "uploads_meta")
+    touch_submission_updated_at(submission)
     db.commit()
     db.refresh(submission)

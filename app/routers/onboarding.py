@@ -33,16 +33,20 @@ def _get_submission_or_404(db: Session, submission_id: UUID) -> Submission:
 @router.post("/submissions", response_model=SubmissionOut, status_code=201)
 def create_submission(body: SubmissionCreate, db: Session = Depends(get_db)):
     email = normalize_facility_email(body.answers.get("facility_email"))
-    if email:
-        existing = find_open_draft_by_email(db, email)
-        if existing:
-            previous_email = existing.facility_email
-            apply_payload(existing, body)
-            sync_denormalized(existing)
-            maybe_send_application_started_email(db, existing, previous_email=previous_email)
-            db.commit()
-            db.refresh(existing)
-            return submission_to_out(existing)
+    if not email:
+        raise HTTPException(
+            status_code=400,
+            detail="facility_email is required to start an onboarding draft",
+        )
+    existing = find_open_draft_by_email(db, email)
+    if existing:
+        previous_email = existing.facility_email
+        apply_payload(existing, body)
+        sync_denormalized(existing)
+        maybe_send_application_started_email(db, existing, previous_email=previous_email)
+        db.commit()
+        db.refresh(existing)
+        return submission_to_out(existing)
 
     submission = Submission(status=SubmissionStatus.incomplete.value)
     apply_payload(submission, body)
@@ -158,7 +162,12 @@ def remove_file(submission_id: UUID, upload_key: str, db: Session = Depends(get_
 def import_payload(body: SubmissionPayload, db: Session = Depends(get_db)):
     """Accept full portal JSON (submit or export) in one request."""
     email = normalize_facility_email(body.answers.get("facility_email"))
-    existing = find_open_draft_by_email(db, email) if email and not body.submitted else None
+    if not email:
+        raise HTTPException(
+            status_code=400,
+            detail="facility_email is required to start an onboarding draft",
+        )
+    existing = find_open_draft_by_email(db, email) if not body.submitted else None
     if existing:
         submission = existing
     else:
