@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import HTTPException
-from sqlalchemy import func, or_, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session, joinedload
 
 from app.config import get_settings
@@ -362,12 +362,43 @@ def list_item_from_submission(
     )
 
 
+def _nonempty_text(expr):
+    """True when a string/JSON text expression has non-whitespace content."""
+    return and_(expr.isnot(None), func.length(func.trim(expr)) > 0)
+
+
+def _exclude_empty_drafts_clause():
+    """
+    Hide abandoned drafts with no facility identity.
+
+    Keeps submitted rows and any draft that has a name or email on the
+    typed columns or inside answers JSON.
+    """
+    answers_name = Submission.answers.op("->>")("facility_name")
+    answers_email = Submission.answers.op("->>")("facility_email")
+    return or_(
+        Submission.submitted.is_(True),
+        _nonempty_text(Submission.facility_name),
+        _nonempty_text(Submission.facility_email),
+        _nonempty_text(answers_name),
+        _nonempty_text(answers_email),
+    )
+
+
 def get_stats(db: Session) -> AdminStats:
+    visible = _exclude_empty_drafts_clause()
     rows = db.execute(
-        select(Submission.status, func.count()).group_by(Submission.status)
+        select(Submission.status, func.count())
+        .where(visible)
+        .group_by(Submission.status)
     ).all()
     counts = {status: count for status, count in rows}
-    files_attached = db.scalar(select(func.count()).select_from(SubmissionFile)) or 0
+    files_attached = db.scalar(
+        select(func.count())
+        .select_from(SubmissionFile)
+        .join(Submission, SubmissionFile.submission_id == Submission.id)
+        .where(visible)
+    ) or 0
     return AdminStats(
         total=sum(counts.values()),
         pending=counts.get(SubmissionStatus.pending.value, 0),
@@ -392,31 +423,41 @@ def query_submissions(
     page: int = 1,
     per_page: int = 25,
     submitted_only: bool = False,
+    hide_empty_drafts: bool = True,
 ) -> tuple[list[Submission], int]:
     q = select(Submission).options(joinedload(Submission.files))
-    if submitted_only:
-        q = q.where(Submission.submitted.is_(True))
-    if search:
-        like = f"%{search.lower()}%"
-        q = q.where(
-            or_(
-                func.lower(Submission.facility_name).like(like),
-                func.lower(Submission.facility_email).like(like),
-                func.lower(Submission.city).like(like),
+    count_q = select(func.count()).select_from(Submission)
+
+    def apply_filters(query):
+        if hide_empty_drafts:
+            query = query.where(_exclude_empty_drafts_clause())
+        if submitted_only:
+            query = query.where(Submission.submitted.is_(True))
+        if search:
+            like = f"%{search.lower()}%"
+            query = query.where(
+                or_(
+                    func.lower(Submission.facility_name).like(like),
+                    func.lower(Submission.facility_email).like(like),
+                    func.lower(Submission.city).like(like),
+                )
             )
-        )
-    if status:
-        q = q.where(Submission.status == status)
-    if region:
-        q = q.where(Submission.region == region)
-    if facility_type:
-        q = q.where(Submission.facility_type == facility_type)
-    start = _parse_day_bound(date_from)
-    end = _parse_day_bound(date_to, end_of_day=True)
-    if start:
-        q = q.where(_activity_timestamp() >= start)
-    if end:
-        q = q.where(_activity_timestamp() <= end)
+        if status:
+            query = query.where(Submission.status == status)
+        if region:
+            query = query.where(Submission.region == region)
+        if facility_type:
+            query = query.where(Submission.facility_type == facility_type)
+        start = _parse_day_bound(date_from)
+        end = _parse_day_bound(date_to, end_of_day=True)
+        if start:
+            query = query.where(_activity_timestamp() >= start)
+        if end:
+            query = query.where(_activity_timestamp() <= end)
+        return query
+
+    q = apply_filters(q)
+    count_q = apply_filters(count_q)
 
     sort_map = {
         "facility_name": Submission.facility_name,
@@ -430,29 +471,6 @@ def query_submissions(
     }
     col = sort_map.get(sort_field, Submission.submitted_at)
     q = q.order_by(col.desc() if sort_direction == "desc" else col.asc())
-
-    count_q = select(func.count()).select_from(Submission)
-    if submitted_only:
-        count_q = count_q.where(Submission.submitted.is_(True))
-    if search:
-        like = f"%{search.lower()}%"
-        count_q = count_q.where(
-            or_(
-                func.lower(Submission.facility_name).like(like),
-                func.lower(Submission.facility_email).like(like),
-                func.lower(Submission.city).like(like),
-            )
-        )
-    if status:
-        count_q = count_q.where(Submission.status == status)
-    if region:
-        count_q = count_q.where(Submission.region == region)
-    if facility_type:
-        count_q = count_q.where(Submission.facility_type == facility_type)
-    if start:
-        count_q = count_q.where(_activity_timestamp() >= start)
-    if end:
-        count_q = count_q.where(_activity_timestamp() <= end)
 
     total = db.scalar(count_q) or 0
     page = max(1, page)
