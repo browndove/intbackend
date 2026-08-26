@@ -86,6 +86,7 @@ REQUIRED_ANSWER_KEYS = [
     "primary_name",
     "primary_phone",
     "primary_email",
+    "emergency_contact",
     "total_employees",
     "total_clinical_staff",
     "total_nonclinical_staff",
